@@ -24,7 +24,7 @@ let imageLoader = {
         if(imageLoader.loadProgress >= imageLoader.imgsrcs.length){
             start();
         }
-        else if(performance.now > 100){
+        else if(performance.now() > 50){
             draws.loading();
         }
     },
