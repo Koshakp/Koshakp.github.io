@@ -8,14 +8,14 @@ canvas.addEventListener('mousedown', mouseDown);
 canvas.addEventListener('mousemove', mouseMove);
 canvas.addEventListener('mouseup', mouseUp);
 
-let img = [];
+let img = {};
 let imageLoader = {
-    imgsrcs : ['doorLeft', 'doorFront', 'doorRight', 'doorLeft1', 'doorFront1', 'doorRight1', 'doorLeft2', 'doorFront2', 'doorRight2', 'room', 'room1', 'room2', 'keyhole', 'enemy', 'table'],//images
+    imgsrcs : ['doorLeft0', 'doorFront0', 'doorRight0', 'doorLeft1', 'doorFront1', 'doorRight1', 'doorLeft2', 'doorFront2', 'doorRight2', 'room0', 'room1', 'room2', 'keyhole', 'enemy', 'table'],//images
     imgadd : function(a){
-        for(let i = 0; i < a.length; i++){
-            img.push(new Image());
+        for(const i of a){
+            img[i] = new Image();
             img[i].onload = this.loading;
-            img[i].src = `images/${a[i]}.png`;
+            img[i].src = `images/${i}.png`;
         }
     },
     loadProgress : 0,
@@ -23,6 +23,9 @@ let imageLoader = {
         imageLoader.loadProgress++;
         if(imageLoader.loadProgress >= imageLoader.imgsrcs.length){
             start();
+        }
+        else{
+            draws.loading();
         }
     },
     init : function(){
@@ -799,30 +802,30 @@ let draws = {
 
         //экран камеры
         //двери
-        ctx.drawImage(img[8 + view.cam.roomSkin], cw * 0.1, ch * 0.1 + y, cw * 0.8, ch * 0.9);
+        ctx.drawImage(img[`room${view.cam.roomSkin - 1}`], cw * 0.1, ch * 0.1 + y, cw * 0.8, ch * 0.9);
         if(view.cam.room[1] != 0){
-            ctx.drawImage(img[3 * (view.cam.room[1] - 1)], cw * 0.1773, ch * 0.271 + y, cw * 0.0763, ch * 0.612);
+            ctx.drawImage(img[`doorLeft${view.cam.room[1] - 1}`], cw * 0.1773, ch * 0.271 + y, cw * 0.0763, ch * 0.612);
         }
         if(view.cam.room[2] != 0){
-            ctx.drawImage(img[1 + 3 * (view.cam.room[2] - 1)], cw * 0.46, ch * 0.2521 + y, cw * 0.08, ch * 0.45);
+            ctx.drawImage(img[`doorFront${view.cam.room[2] - 1}`], cw * 0.46, ch * 0.2521 + y, cw * 0.08, ch * 0.45);
         }
         if(view.cam.room[3] != 0){
-            ctx.drawImage(img[2 + 3 * (view.cam.room[3] - 1)], cw * 0.7464, ch * 0.271 + y, cw * 0.0763, ch * 0.612);
+            ctx.drawImage(img[`doorRight${view.cam.room[3] - 1}`], cw * 0.7464, ch * 0.271 + y, cw * 0.0763, ch * 0.612);
         }
 
         //аниматроник
         if(view.cam.enemyShow !== false){
             if(view.cam.enemyShow == 0){
-                ctx.drawImage(img[13], cw * 0.02, ch * 0.3 + y, cw * 1, ch * 2);
+                ctx.drawImage(img.enemy, cw * 0.02, ch * 0.3 + y, cw * 1, ch * 2);
             }
             else if(view.cam.enemyShow == 1){
-                ctx.drawImage(img[13], cw * 0.22, ch * 0.35 + y, cw * 0.15, ch * 0.5);
+                ctx.drawImage(img.enemy, cw * 0.22, ch * 0.35 + y, cw * 0.15, ch * 0.5);
             }
             else if(view.cam.enemyShow == 2){
-                ctx.drawImage(img[13], cw * 0.43, ch * 0.3 + y, cw * 0.15, ch * 0.5);
+                ctx.drawImage(img.enemy, cw * 0.43, ch * 0.3 + y, cw * 0.15, ch * 0.5);
             }
             else{
-                ctx.drawImage(img[13], cw * 0.63, ch * 0.35 + y, cw * 0.15, ch * 0.5);
+                ctx.drawImage(img.enemy, cw * 0.63, ch * 0.35 + y, cw * 0.15, ch * 0.5);
             }
         }
 
@@ -986,6 +989,19 @@ let draws = {
         ctx.lineWidth = sra * 0.06;
         ctx.fillRect(cw * 0.375, ch * 0.95, cw * 0.25, ch * 0.05);
         ctx.strokeRect(cw * 0.375, ch * 0.95, cw * 0.25, ch * 0.05 - sra * 0.03);
+    },
+    loading : function(){
+        ctx.clearRect(0, 0, cw, ch);
+        ctx.fillStyle = '#000';
+        ctx.fillRect(0, 0, cw, ch);
+        ctx.fillStyle = '#FFF';
+        ctx.font = `normal ${cw * 0.05}px arial`;
+        ctx.fillText('LOADING...', cw / 2, ch * 0.4);
+        ctx.fillText(`${Math.round(imageLoader.loadProgress / imageLoader.imgsrcs.length * 100)}%`, cw / 2, ch * 0.5);
+        ctx.fillStyle = '#777';
+        ctx.fillRect(cw / 3, ch * 0.9, cw / 3, ch * 0.05);
+        ctx.fillStyle = '#FFF';
+        ctx.fillRect(cw / 3 + cw * 0.005, ch * 0.9 + cw * 0.005, (cw / 3 - cw * 0.01) * (imageLoader.loadProgress / imageLoader.imgsrcs.length), ch * 0.05 - cw * 0.01);
     }
 };
  
@@ -1003,48 +1019,48 @@ function draw(){
             ctx.fillStyle = '#131A12';
         }
         ctx.fillRect(0, 0, cw, ch);
-        ctx.drawImage(img[1 + 3 * (view.room[0] - 1)], cw / 4, ch * -0.1, cw / 2, cw * 235 / 288);
+        ctx.drawImage(img[`doorFront${view.room[0] - 1}`], cw / 4, ch * -0.1, cw / 2, cw * 235 / 288);
         draws.peek();
     }
     else{//комната
-        ctx.drawImage(img[8 + view.roomSkin], view.x * cw / -2, 0, cw * 1.5, ch);
+        ctx.drawImage(img[`room${view.roomSkin - 1}`], view.x * cw / -2, 0, cw * 1.5, ch);
         if(view.room[1] > 0 && view.room[1] < 4){
-            ctx.drawImage(img[3 * (view.room[1] - 1)], view.x * cw / -2 + cw * 0.145, ch * 0.19, cw * 0.143, ch * 0.68);
+            ctx.drawImage(img[`doorLeft${view.room[1] - 1}`], view.x * cw / -2 + cw * 0.145, ch * 0.19, cw * 0.143, ch * 0.68);
         }
         if(view.room[2] > 0 && view.room[2] < 4){
-            ctx.drawImage(img[1 + 3 * (view.room[2] - 1)], view.x * cw / -2 + cw * 0.675, ch * 0.169, cw * 0.15, ch * 0.5);
+            ctx.drawImage(img[`doorFront${view.room[2] - 1}`], view.x * cw / -2 + cw * 0.675, ch * 0.169, cw * 0.15, ch * 0.5);
         }
         if(view.room[3] > 0 && view.room[3] < 4){
-            ctx.drawImage(img[2 + 3 * (view.room[3] - 1)], view.x * cw / -2 + cw * 1.212, ch * 0.19, cw * 0.143, ch * 0.68);
+            ctx.drawImage(img[`doorRight${view.room[3] - 1}`], view.x * cw / -2 + cw * 1.212, ch * 0.19, cw * 0.143, ch * 0.68);
         }
         if(view.room[1] == 4){
-            ctx.drawImage(img[14], cw * 0.29 + view.x * cw / -2, ch * 0.56, cw * 0.25, ch * 0.25);
+            ctx.drawImage(img.table, cw * 0.29 + view.x * cw / -2, ch * 0.56, cw * 0.25, ch * 0.25);
         }
         else if(view.room[3] == 4){
-            ctx.drawImage(img[14], cw * 0.96 + view.x * cw / -2, ch * 0.56, cw * 0.25, ch * 0.25);
+            ctx.drawImage(img.table, cw * 0.96 + view.x * cw / -2, ch * 0.56, cw * 0.25, ch * 0.25);
         }
         else if(view.room[0] == 4){
-            ctx.drawImage(img[14], cw * 0.35 + view.x * cw / -2, ch * 0.4, cw * 0.8, ch * 0.6);
+            ctx.drawImage(img.table, cw * 0.35 + view.x * cw / -2, ch * 0.4, cw * 0.8, ch * 0.6);
         }
     }
 
     if(view.enemyShow !== false && view.roomType != 1){//аниматроник
         if(view.enemyShow == 0){
-            ctx.drawImage(img[13], cw * 0.4435 + view.x * cw / -2, ch * -0.2, cw * 0.613, cw);
+            ctx.drawImage(img.enemy, cw * 0.4435 + view.x * cw / -2, ch * -0.2, cw * 0.613, cw);
         }
         else if(view.enemyShow == 1){
-            ctx.drawImage(img[13], view.x * cw / -2 + cw * 0.23, ch * 0.25, cw * 0.2, cw * 0.3264);
+            ctx.drawImage(img.enemy, view.x * cw / -2 + cw * 0.23, ch * 0.25, cw * 0.2, cw * 0.3264);
         }
         else if(view.enemyShow == 2){
-            ctx.drawImage(img[13], view.x * cw / -2 + cw * 0.675, ch * 0.21, cw * 0.15, cw * 0.2448);
+            ctx.drawImage(img.enemy, view.x * cw / -2 + cw * 0.675, ch * 0.21, cw * 0.15, cw * 0.2448);
         }
         else{
-            ctx.drawImage(img[13], view.x * cw / -2 + cw * 1.07, ch * 0.25, cw * 0.2, cw * 0.3264);
+            ctx.drawImage(img.enemy, view.x * cw / -2 + cw * 1.07, ch * 0.25, cw * 0.2, cw * 0.3264);
         }
     }
 
     if(view.roomType == 2){//замочная скважина
-        ctx.drawImage(img[12], plx - cw, ply - ch, cw * 2, ch * 2);
+        ctx.drawImage(img.keyhole, plx - cw, ply - ch, cw * 2, ch * 2);
     }
     else if(view.room[0] > 0 && view.room[0] < 4 && view.roomType == 0){//кнопка back
         draws.backdoor();
