@@ -10,7 +10,7 @@ canvas.addEventListener('mouseup', mouseUp);
 
 let img = {};
 let imageLoader = {
-    imgsrcs : ['doorLeft0', 'doorFront0', 'doorRight0', 'doorLeft1', 'doorFront1', 'doorRight1', 'doorLeft2', 'doorFront2', 'doorRight2', 'room0', 'room1', 'room2', 'keyhole', 'enemy', 'table'],//images
+    imgsrcs : ['doorLeft0', 'doorFront0', 'doorRight0', 'doorLeft1', 'doorFront1', 'doorRight1', 'doorLeft2', 'doorFront2', 'doorRight2', 'room0', 'room1', 'room2', 'keyhole', 'enemy', 'table', 'interference0', 'interference1', 'interference2'],//images
     imgadd : function(a){
         for(const i of a){
             img[i] = new Image();
@@ -227,7 +227,9 @@ let menu = {
     setpushed : -1,
     customSettingParams : [
         {name : 'enemy normal move delay (ms)', min : 100, max : 20000, def : 6000, ready : function(v){enemy.moveDelay = v; enemy.delay = v + 1000;}},
+        {name : 'normal move delay scatter (ms)', min : 0, max : 5000, def : 1000, ready : function(v){enemy.delayScatter[0] = v;}},
         {name : 'enemy rage move delay (ms)', min : 100, max : 10000, def : 1500, ready : function(v){enemy.agrDelay[0] = v;}},
+        {name : 'rage move delay scatter (ms)', min : 0, max : 5000, def : 200, ready : function(v){enemy.delayScatter[1] = v;}},
         {name : 'enemy keyhole detect move delay (ms)', min : 100, max : 10000, def : 3000, ready : function(v){enemy.agrDelay[1] = v;}},
         {name : 'night length (sec)', min : 30, max : 720, def : 240, ready : function(v){game.endTime = v * 1000;}},
         {name : 'show minutes', min : 0, max : 1, def : 0, ready : function(v){game.showMinutes = Boolean(v);}},
@@ -494,8 +496,10 @@ let enemy = {
     agr : false,
     moveDelay : 6000,
     agrDelay : [1500, 3000],
+    delayScatter : [1000, 200],//normal, agr
     agrSpad : 0,
     spos : 0,
+    sgpos : 0,
     target : -1,
     chansesWidth : [1, 8, 32],//вернуться, подойти к двери, пройти через дверь
     update : function(){
@@ -505,7 +509,7 @@ let enemy = {
         else if(this.gpos == locate.gpos || (this.gpos == view.gpos && this.lpos == view.lpos)){
             if(this.gpos == locate.gpos){
                 if(this.agr == false){
-                    this.delay = this.agrDelay[0];
+                    this.delay = this.agrDelay[0] + Math.round((Math.random() * 2 - 1) * this.delayScatter[1]);
                 }
                 this.target = locate.lpos;
                 this.agrSpad = 4;
@@ -524,15 +528,16 @@ let enemy = {
         }
         else{
             this.move();
+            this.interferenceCheck();
             if(this.agr){
-                this.delay += this.agrDelay[0];
+                this.delay += this.agrDelay[0] + Math.round((Math.random() * 2 - 1) * this.delayScatter[1]);
                 this.agrSpad--;
                 if(this.agrSpad <= 0){
                     this.agr = false;
                 }
             }
             else{
-                this.delay += this.moveDelay;
+                this.delay += this.moveDelay + Math.round((Math.random() * 2 - 1) * this.delayScatter[0]);
             }
         }
     },
@@ -600,6 +605,12 @@ let enemy = {
                 return i;
             }
         }
+    },
+    interferenceCheck : function(){
+        if(this.sgpos == locate.cam[view.cam.select][0] || this.gpos == locate.cam[view.cam.select][0]){
+            view.interference(true);
+        }
+        this.sgpos = this.gpos;
     }
 };
 
@@ -630,7 +641,13 @@ let view = {
         select : 0,
         room : [0, 0, 0, 0],
         roomSkin : 1,
-        enemyShow : false
+        enemyShow : false,
+        interferenceDuration : 1000,
+        interferenceDelay : 0,
+        interferenced : false,
+        interferenceFrame : 0,
+        interferenceFrameDuration : 50,
+        interferenceFrameDelay : 0
     },
     update : function(){
         //движение по краям экрана
@@ -652,6 +669,8 @@ let view = {
 
         //аниматроник в комнате
         this.enemyCheck();
+
+        this.interference();
 
         //смена положения с затемнением
         this.darkChange();
@@ -889,6 +908,28 @@ let view = {
             this.enemyShow = false;
         }
     },
+    interference : function(put){//помехи
+        if(put){
+            this.cam.interferenceDelay = this.cam.interferenceDuration;
+            this.cam.interferenceFrameDelay = this.cam.interferenceFrameDuration;
+            this.cam.interferenced = true;
+        }
+        else if(this.cam.interferenced){
+            this.cam.interferenceDelay -= time.delta;
+            this.cam.interferenceFrameDelay -= time.delta;
+            if(this.cam.interferenceFrameDelay <= 0){
+                this.cam.interferenceFrame += 1;
+                if(this.cam.interferenceFrame > 2){
+                    this.cam.interferenceFrame = 0;
+                }
+                this.cam.interferenceFrameDelay = this.cam.interferenceFrameDuration;
+            }
+            if(this.cam.interferenceDelay <= 0){
+                this.cam.interferenced = false;
+                this.cam.interferenceDelay = 0;
+            }
+        }
+    },
     sinUpdate : function(){//синусоидальное движение объектов интерфейса
         this.timeTrack += 0.002 * time.delta;
         if(this.timeTrack >= 1){
@@ -972,6 +1013,8 @@ let draws = {
             }
         }
 
+        this.interference(cw * 0.1, ch * 0.1 + y, cw * 0.8, ch * 0.9);//помехи
+
         //карта
         ctx.lineWidth = sra * 0.01;
         ctx.strokeStyle = '#999';
@@ -1040,6 +1083,11 @@ let draws = {
             ctx.fillStyle = '#B33';
             const lposcords = locate.lposToCords(enemy.lpos);
             ctx.fillRect(cw * 0.58 + (enemy.gpos % locate.w) * w + w * 0.4 + w * 0.3 * lposcords[0], ch - w * mh - ch * 0.05 + Math.floor(enemy.gpos / locate.w) * w + y + w * 0.4  + w * 0.3 * lposcords[1], w * 0.2, w * 0.2);
+        }
+    },
+    interference : function(x, y, w, h){
+        if(view.cam.interferenced){
+            ctx.drawImage(img[`interference${view.cam.interferenceFrame}`], x, y, w, h);
         }
     },
     arrow : function(x, y, w, n){
