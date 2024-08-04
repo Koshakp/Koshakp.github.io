@@ -24,7 +24,7 @@ let imageLoader = {
         if(imageLoader.loadProgress >= imageLoader.imgsrcs.length){
             start();
         }
-        else{
+        else if(performance.now > 100){
             draws.loading();
         }
     },
@@ -145,6 +145,163 @@ function start(){
 }
 
 resize();
+
+let game = {
+    type : 0,
+    time : 0,
+    endTime : 240000,
+    showMinutes : false,
+    shows : [false, false],
+    clock : ['12', '00'],
+    update : function(){
+        this.time += time.delta;
+
+        this.clockUpdate();
+
+        if(this.time >= this.endTime){
+            this.win();
+        }
+
+        this.showsUpdate();
+    },
+    clockUpdate : function(){
+        const hourN = Math.floor(this.time / this.endTime * 6);
+        if(hourN == 0){
+            this.clock[0] = '12';
+        }
+        else{
+            if(this.showMinutes){
+                this.clock[0] = '0' + String(hourN);
+            }
+            else{
+                this.clock[0] = String(hourN);
+            }
+        }
+        if(this.showMinutes){
+            const minN = Math.floor(this.time / this.endTime * 360) % 60;
+            if(minN < 10){
+                this.clock[1] = '0' + String(minN);
+            }
+            else{
+                this.clock[1] = String(minN);
+            }
+        }
+    },
+    dead : function(){
+        this.showMinutes = true;
+        this.clockUpdate();
+        ctx.fillStyle = '#000';
+        ctx.fillRect(0, 0, cw, ch);
+        ctx.fillStyle = '#FFF';
+        ctx.font = `normal ${cw * 0.02}px arial`;
+        ctx.fillText('GAME OVER', cw * 0.5, ch * 0.5);
+        ctx.fillText(`${this.clock[0]} : ${this.clock[1]}`, cw * 0.5, ch * 0.55);
+        stop();
+    },
+    win : function(){
+        ctx.fillStyle = '#000';
+        ctx.fillRect(0, 0, cw, ch);
+        ctx.fillStyle = '#FFF';
+        ctx.font = `normal ${cw * 0.02}px arial`;
+        ctx.fillText('06 : 00', cw * 0.5, ch * 0.5);
+        stop();
+    },
+    showsUpdate : function(){//чит панель (логи и карта)
+        if(bs){
+            stop();
+        }
+        if(ba && !this.shows[0]){
+            showLog = !showLog;
+        }
+        if(bd && !this.shows[1]){
+            showMap = !showMap;
+        }
+        this.shows = [ba, bd];
+    }
+};
+
+
+let menu = {
+    night : 1,
+    nightMouseUp : 0,
+    setpushed : -1,
+    customSettingParams : [
+        {name : 'enemy normal move delay (ms)', min : 100, max : 20000, def : 6000, ready : function(v){enemy.moveDelay = v; enemy.delay = v + 1000;}},
+        {name : 'enemy rage move delay (ms)', min : 100, max : 10000, def : 1500, ready : function(v){enemy.agrDelay[0] = v;}},
+        {name : 'enemy keyhole detect move delay (ms)', min : 100, max : 10000, def : 3000, ready : function(v){enemy.agrDelay[1] = v;}},
+        {name : 'night length (sec)', min : 30, max : 720, def : 240, ready : function(v){game.endTime = v * 1000;}},
+        {name : 'show minutes', min : 0, max : 1, def : 0, ready : function(v){game.showMinutes = Boolean(v);}},
+        {name : 'passive energy decrease (in sec)', min : 0, max : 10, def : 1, ready : function(v){console.log(`energy soon... value : ${v}`);}},
+    ],
+    settings : [],
+    sliderPos : [],
+    update : function(){
+        this.buttonPlay();
+        this.buttonNight();
+        this.customSettings();
+    },
+    customSettings : function(){
+        if(this.night == 7){
+            for(let i = 0; i < this.customSettingParams.length; i++){
+                if((inArea(plx, ply, sra * 8.6, ch * 0.1 + i * sra * 0.5, sra * 2, sra * 0.2) && click && !sclick) || (this.setpushed == i && click)){
+                    this.setpushed = i;
+                    this.sliderPos[i] = (plx - sra * 8.6) / (sra * 2);
+                    if(this.sliderPos[i] < 0){
+                        this.sliderPos[i] = 0;
+                    }
+                    else if(this.sliderPos[i] > 1){
+                        this.sliderPos[i] = 1;
+                    }
+                    this.settings[i] = Math.round(this.sliderPos[i] * (this.customSettingParams[i].max - this.customSettingParams[i].min) + this.customSettingParams[i].min);
+                }
+            }
+            if(click == 0){
+                this.setpushed = -1;
+            }
+        }
+    },
+    buttonPlay : function(){
+        if(inArea(plx, ply, 0, 0, cw / 3, ch / 4) && click && !sclick){
+            if(this.night == 7){
+                this.setSettings();
+            }
+            game.type = 1;
+        }
+    },
+    buttonNight : function(){
+        if(inArea(plx, ply, sra * 1.275, ch / 2 + sra * 0.2, sra * 2.85, sra)){
+            if(plx > sra * 3.075){
+                this.nightMouseUp = 7;
+                if(click && !sclick){
+                    this.night = this.nightMouseUp;
+                }
+            }
+            else{
+                const i = Math.floor((plx - sra * 1.275) / (sra * 0.6));
+                const j = Math.floor((ply - (ch / 2 + sra * 0.2)) / (sra * 0.5));
+                this.nightMouseUp = i + 1 + j * 3;
+                if(click && !sclick){
+                    this.night = this.nightMouseUp;
+                }
+            }
+        }
+        else{
+            this.nightMouseUp = 0;
+        }
+    },
+    setSettings : function(){
+        for(let i = 0; i < this.settings.length; i++){
+            this.customSettingParams[i].ready(this.settings[i]);
+        }
+    },
+    init : function(){
+        for(const i of this.customSettingParams){
+            this.sliderPos.push((i.def - i.min) / (i.max - i.min));
+            this.settings.push(i.def);
+        }
+    }
+};
+menu.init();
 
 let locate = {
     gpos : 14,
@@ -333,7 +490,7 @@ locate.init();
 let enemy = {
     gpos : 11,
     lpos : 0,
-    delay : 10000,
+    delay : 7000,
     agr : false,
     moveDelay : 6000,
     agrDelay : [1500, 3000],
@@ -343,7 +500,7 @@ let enemy = {
     chansesWidth : [1, 8, 32],//вернуться, подойти к двери, пройти через дверь
     update : function(){
         if(this.lpos == locate.lpos && this.gpos == locate.gpos){
-            this.dead();
+            game.dead();
         }
         else if(this.gpos == locate.gpos || (this.gpos == view.gpos && this.lpos == view.lpos)){
             if(this.gpos == locate.gpos){
@@ -434,14 +591,6 @@ let enemy = {
             this.target = -1;
         }
     },
-    dead : function(){
-        ctx.fillStyle = '#B33';
-        ctx.fillRect(0, 0, cw, ch);
-        ctx.fillStyle = '#000';
-        ctx.font = `normal ${cw * 0.2}px impact`;
-        ctx.fillText('GAME OVER', cw * 0.5, ch * 0.5);
-        stop();
-    },
     rand : function(c){
         const sum = c.reduce((a, b) => a + b);
         const shans = c.map((e) => e / sum);
@@ -509,7 +658,6 @@ let view = {
 
         //синусоидальное прыганье стрелочки и показ логов и карты
         this.sinUpdate();
-        this.showsUpdate();
     },
     roomActions : function(){//roomType == 0
         //двери
@@ -687,7 +835,7 @@ let view = {
         //корректировка агра аниматроника
         if(enemy.gpos == locate.gpos && this.changeWait[1]){
             if(this.changeWait[0] === this.enemyShow){
-                enemy.dead();
+                game.dead();
             }
             else{
                 let pos = locate.lpos + this.changeWait[0];
@@ -741,18 +889,6 @@ let view = {
             this.enemyShow = false;
         }
     },
-    showsUpdate : function(){//чит панель (логи и карта)
-        if(bs){
-            stop();
-        }
-        if(ba && !this.shows[0]){
-            showLog = !showLog;
-        }
-        if(bd && !this.shows[1]){
-            showMap = !showMap;
-        }
-        this.shows = [ba, bd];
-    },
     sinUpdate : function(){//синусоидальное движение объектов интерфейса
         this.timeTrack += 0.002 * time.delta;
         if(this.timeTrack >= 1){
@@ -778,9 +914,16 @@ imageLoader.init();//start on load
 function update(){
     time.update();
 
-    enemy.update();
-    view.update();
+    game.showsUpdate();
 
+    if(game.type == 0){
+        menu.update();
+    }
+    else if(game.type == 1){
+        enemy.update();
+        view.update();
+        game.update();
+    }
 
 	sclick = click; srclick = rclick;
     if(run){
@@ -888,7 +1031,7 @@ let draws = {
             ctx.fillRect(xcam, ycam, w * 0.4, w * 0.4);
             ctx.strokeRect(xcam, ycam, w * 0.4, w * 0.4);
             ctx.fillStyle = '#000';
-            ctx.font = `normal ${cw * 0.015}px impact`;
+            ctx.font = `normal ${cw * 0.015}px arial`;
             ctx.fillText(i + 1, xcam + w * 0.2, ycam + w * 0.2);
         }
 
@@ -933,7 +1076,7 @@ let draws = {
         ctx.fillRect(cw * 0.4, ch * 0.9, cw * 0.2, ch * 0.1);
         ctx.strokeRect(cw * 0.4, ch * 0.9, cw * 0.2, ch * 0.1);
         ctx.fillStyle = '#000';
-        ctx.font = `normal ${cw * 0.03}px impact`;
+        ctx.font = `normal ${cw * 0.03}px arial`;
         ctx.fillText('BACK', cw * 0.5, ch * 0.95);
     },
     dark : function(){
@@ -964,7 +1107,7 @@ let draws = {
         ctx.fillRect(cw * 0.8, ch * 0.5 - cw * 0.03125, cw * 0.15, cw * 0.0625);
         ctx.strokeRect(cw * 0.8, ch * 0.5 - cw * 0.03125, cw * 0.15, cw * 0.0625);
         ctx.fillStyle = '#000';
-        ctx.font = `normal ${cw * 0.03}px impact`;
+        ctx.font = `normal ${cw * 0.03}px arial`;
         ctx.fillText('PEEK', cw * 0.875, ch * 0.5);
     },
     logs : function(){
@@ -979,7 +1122,7 @@ let draws = {
         ctx.fillText(`x / y / RX:    ${Math.round(plx / cw * 1000) / 1000} / ${Math.round(ply / ch * 1000) / 1000} / ${Math.round((plx + view.x * cw / 2) / cw * 1000) / 1000}`, cw * 0.02, ch * 0.25);
         ctx.fillText(`enemy Gpos / Lpos:    ${enemy.gpos} / ${enemy.lpos}`, cw * 0.02, ch * 0.3);
         ctx.fillText(`enemy delay:    ${Math.round(enemy.delay)}`, cw * 0.02, ch * 0.35);
-        ctx.font = `normal ${cw * 0.03}px impact`;
+        ctx.font = `normal ${cw * 0.03}px arial`;
         ctx.textAlign = 'center';
         ctx.textBaseline = 'middle';
     },
@@ -1002,91 +1145,179 @@ let draws = {
         ctx.fillRect(cw / 3, ch * 0.9, cw / 3, ch * 0.05);
         ctx.fillStyle = '#FFF';
         ctx.fillRect(cw / 3 + cw * 0.005, ch * 0.9 + cw * 0.005, (cw / 3 - cw * 0.01) * (imageLoader.loadProgress / imageLoader.imgsrcs.length), ch * 0.05 - cw * 0.01);
+    },
+    mainMenu : function(){
+        ctx.fillStyle = '#000';
+        ctx.fillRect(0, 0, cw, ch);
+        if(menu.night != 7){
+            ctx.drawImage(img.enemy, 0, 0, img.enemy.width, img.enemy.height * 0.4, cw * 0.4, ch * 0.1, cw * 0.7, ch * 0.9);
+        }
+        ctx.fillStyle = '#FFF';
+        ctx.textAlign = 'left';
+        ctx.textBaseline = 'top';
+        ctx.font = `normal ${sra * 1.1}px arial`;
+        ctx.fillText('PLAY', sra * 0.8, sra * 0.8);
+        ctx.font = `normal ${sra * 0.29}px arial`;
+        ctx.fillText('NIGHT:', sra * 0.3, ch / 2 + sra * 0.3);
+        // ctx.strokeStyle = '#FFF';
+        // ctx.strokeRect(0, 0, cw / 3, ch / 4);
+        // ctx.strokeRect(sra * 1.275, ch / 2 + sra * 0.2, sra * 2.85, sra);
+        if(menu.night != menu.nightMouseUp && menu.nightMouseUp != 0){
+            ctx.strokeStyle = '#888';
+            ctx.lineWidth = sra * 0.02;
+            if(menu.nightMouseUp == 7){
+                ctx.strokeRect(sra * 3.075, ch / 2 + sra * 0.2, sra * 1.05, sra);
+            }
+            else{
+                ctx.strokeRect(sra * 1.275 + ((menu.nightMouseUp - 1) % 3) * sra * 0.6, ch / 2 + sra * 0.2 + Math.floor((menu.nightMouseUp - 1) / 3) * sra * 0.5, sra * 0.6, sra * 0.5);
+            }
+        }
+        ctx.strokeStyle = '#FFF';
+        if(menu.night == 7){
+            ctx.strokeRect(sra * 3.075, ch / 2 + sra * 0.2, sra * 1.05, sra);
+        }
+        else{
+            ctx.strokeRect(sra * 1.275 + ((menu.night - 1) % 3) * sra * 0.6, ch / 2 + sra * 0.2 + Math.floor((menu.night - 1) / 3) * sra * 0.5, sra * 0.6, sra * 0.5);
+        }
+        ctx.font = `normal ${sra * 0.3}px arial`;
+        for(let i = 0; i < 3; i++){
+            for(let j = 0; j < 2; j++){
+                ctx.fillText((i + 1) + j * 3, sra * 1.5 + i * sra * 0.6, ch / 2 + sra * 0.3 + j * sra * 0.5);
+            }
+        }
+        ctx.font = `normal ${sra * 0.86}px arial`;
+        ctx.fillText('C', sra * 3.3, ch / 2 + sra * 0.3);
+
+        if(menu.night == 7){
+            ctx.fillStyle = '#FFF'
+            for(let i = 0; i < menu.customSettingParams.length; i++){
+                ctx.textAlign = 'left';
+                ctx.textBaseline = 'top';
+                ctx.font = `normal ${sra * 0.2}px arial`;
+                ctx.fillText(menu.customSettingParams[i].name, sra * 5, ch * 0.1 + i * sra * 0.5);
+                ctx.fillText(menu.settings[i], sra * 10.7, ch * 0.1 + i * sra * 0.5);
+                this.slider(sra * 8.6, ch * 0.1 + i * sra * 0.5, sra * 2, sra * 0.2, menu.sliderPos[i]);
+
+            }
+        }
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+    },
+    clock : function(){
+        ctx.fillStyle = '#FFF';
+        ctx.textAlign = 'right';
+        ctx.textBaseline = 'top';
+        ctx.font = `normal ${sra * 0.3}px arial`;
+        ctx.fillText(game.clock[0], cw - sra * 0.7, sra * 0.1);
+        if(game.showMinutes){
+            ctx.fillText(game.clock[1], cw - sra * 0.1, sra * 0.1);
+            ctx.fillText(':', cw - sra * 0.52, sra * 0.1);
+        }
+        else{
+            ctx.fillText('AM', cw - sra * 0.1, sra * 0.1);
+        }
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+    },
+    slider : function(x, y, w, h, p){
+        ctx.fillStyle = '#777';
+        ctx.fillRect(x, y + h / 3, w, h / 3);
+        ctx.fillStyle = '#FFF';
+        ctx.fillRect(x + p * w - h / 6, y, h / 3, h);
     }
 };
  
 function draw(){
     ctx.clearRect(0, 0, cw, ch);
 	
-    if(view.roomType == 1){//дверь
-        if(view.roomSkin == 1){
-            ctx.fillStyle = '#240900';
-        }
-        else if(view.roomSkin == 2){
-            ctx.fillStyle = '#070C11';
-        }
-        else if(view.roomSkin == 3){
-            ctx.fillStyle = '#131A12';
-        }
-        ctx.fillRect(0, 0, cw, ch);
-        ctx.drawImage(img[`doorFront${view.room[0] - 1}`], cw / 4, ch * -0.1, cw / 2, cw * 235 / 288);
-        draws.peek();
+    if(game.type == 0){
+        draws.mainMenu();
     }
-    else{//комната
-        ctx.drawImage(img[`room${view.roomSkin - 1}`], view.x * cw / -2, 0, cw * 1.5, ch);
-        if(view.room[1] > 0 && view.room[1] < 4){
-            ctx.drawImage(img[`doorLeft${view.room[1] - 1}`], view.x * cw / -2 + cw * 0.145, ch * 0.19, cw * 0.143, ch * 0.68);
+    else if(game.type == 1){
+        if(view.roomType == 1){//дверь
+            if(view.roomSkin == 1){
+                ctx.fillStyle = '#240900';
+            }
+            else if(view.roomSkin == 2){
+                ctx.fillStyle = '#070C11';
+            }
+            else if(view.roomSkin == 3){
+                ctx.fillStyle = '#131A12';
+            }
+            ctx.fillRect(0, 0, cw, ch);
+            ctx.drawImage(img[`doorFront${view.room[0] - 1}`], cw / 4, ch * -0.1, cw / 2, cw * 235 / 288);
+            draws.peek();
         }
-        if(view.room[2] > 0 && view.room[2] < 4){
-            ctx.drawImage(img[`doorFront${view.room[2] - 1}`], view.x * cw / -2 + cw * 0.675, ch * 0.169, cw * 0.15, ch * 0.5);
+        else{//комната
+            ctx.drawImage(img[`room${view.roomSkin - 1}`], view.x * cw / -2, 0, cw * 1.5, ch);
+            if(view.room[1] > 0 && view.room[1] < 4){
+                ctx.drawImage(img[`doorLeft${view.room[1] - 1}`], view.x * cw / -2 + cw * 0.145, ch * 0.19, cw * 0.143, ch * 0.68);
+            }
+            if(view.room[2] > 0 && view.room[2] < 4){
+                ctx.drawImage(img[`doorFront${view.room[2] - 1}`], view.x * cw / -2 + cw * 0.675, ch * 0.169, cw * 0.15, ch * 0.5);
+            }
+            if(view.room[3] > 0 && view.room[3] < 4){
+                ctx.drawImage(img[`doorRight${view.room[3] - 1}`], view.x * cw / -2 + cw * 1.212, ch * 0.19, cw * 0.143, ch * 0.68);
+            }
+            if(view.room[1] == 4){
+                ctx.drawImage(img.table, cw * 0.29 + view.x * cw / -2, ch * 0.56, cw * 0.25, ch * 0.25);
+            }
+            else if(view.room[3] == 4){
+                ctx.drawImage(img.table, cw * 0.96 + view.x * cw / -2, ch * 0.56, cw * 0.25, ch * 0.25);
+            }
+            else if(view.room[0] == 4){
+                ctx.drawImage(img.table, cw * 0.35 + view.x * cw / -2, ch * 0.4, cw * 0.8, ch * 0.6);
+            }
         }
-        if(view.room[3] > 0 && view.room[3] < 4){
-            ctx.drawImage(img[`doorRight${view.room[3] - 1}`], view.x * cw / -2 + cw * 1.212, ch * 0.19, cw * 0.143, ch * 0.68);
-        }
-        if(view.room[1] == 4){
-            ctx.drawImage(img.table, cw * 0.29 + view.x * cw / -2, ch * 0.56, cw * 0.25, ch * 0.25);
-        }
-        else if(view.room[3] == 4){
-            ctx.drawImage(img.table, cw * 0.96 + view.x * cw / -2, ch * 0.56, cw * 0.25, ch * 0.25);
-        }
-        else if(view.room[0] == 4){
-            ctx.drawImage(img.table, cw * 0.35 + view.x * cw / -2, ch * 0.4, cw * 0.8, ch * 0.6);
-        }
-    }
 
-    if(view.enemyShow !== false && view.roomType != 1){//аниматроник
-        if(view.enemyShow == 0){
-            ctx.drawImage(img.enemy, cw * 0.4435 + view.x * cw / -2, ch * -0.2, cw * 0.613, cw);
+        if(view.enemyShow !== false && view.roomType != 1){//аниматроник
+            if(view.enemyShow == 0){
+                ctx.drawImage(img.enemy, cw * 0.4435 + view.x * cw / -2, ch * -0.2, cw * 0.613, cw);
+            }
+            else if(view.enemyShow == 1){
+                ctx.drawImage(img.enemy, view.x * cw / -2 + cw * 0.23, ch * 0.25, cw * 0.2, cw * 0.3264);
+            }
+            else if(view.enemyShow == 2){
+                ctx.drawImage(img.enemy, view.x * cw / -2 + cw * 0.675, ch * 0.21, cw * 0.15, cw * 0.2448);
+            }
+            else{
+                ctx.drawImage(img.enemy, view.x * cw / -2 + cw * 1.07, ch * 0.25, cw * 0.2, cw * 0.3264);
+            }
         }
-        else if(view.enemyShow == 1){
-            ctx.drawImage(img.enemy, view.x * cw / -2 + cw * 0.23, ch * 0.25, cw * 0.2, cw * 0.3264);
+
+        if(view.roomType == 2){//замочная скважина
+            ctx.drawImage(img.keyhole, plx - cw, ply - ch, cw * 2, ch * 2);
         }
-        else if(view.enemyShow == 2){
-            ctx.drawImage(img.enemy, view.x * cw / -2 + cw * 0.675, ch * 0.21, cw * 0.15, cw * 0.2448);
+        else if(view.room[0] > 0 && view.room[0] < 4 && view.roomType == 0){//кнопка back
+            draws.backdoor();
         }
-        else{
-            ctx.drawImage(img.enemy, view.x * cw / -2 + cw * 1.07, ch * 0.25, cw * 0.2, cw * 0.3264);
+
+        if(view.room[0] == 4){//планшет и кнопка
+            if(view.tab.y < 1){
+                draws.tablet();
+            }
+            draws.tabletButton();
         }
-    }
 
-    if(view.roomType == 2){//замочная скважина
-        ctx.drawImage(img.keyhole, plx - cw, ply - ch, cw * 2, ch * 2);
-    }
-    else if(view.room[0] > 0 && view.room[0] < 4 && view.roomType == 0){//кнопка back
-        draws.backdoor();
-    }
-
-    if(view.room[0] == 4){//планшет и кнопка
-        if(view.tab.y < 1){
-            draws.tablet();
+        if(view.roomType != 2){//время
+            draws.clock();
         }
-        draws.tabletButton();
-    }
 
-    if(view.cursorType >= 0 && view.cursorType <= 3){//курсор стрелочка
-        draws.arrow(plx, ply, sra * 0.3, view.cursorType);
-    }
+        if(view.cursorType >= 0 && view.cursorType <= 3){//курсор стрелочка
+            draws.arrow(plx, ply, sra * 0.3, view.cursorType);
+        }
 
 
-    if(view.changeProgress < 1){//затемнение
-        draws.dark();
-    }
+        if(view.changeProgress < 1){//затемнение
+            draws.dark();
+        }
 
-    if(view.cursorType == 4){//курсор кружок
-        draws.arc(plx, ply, sra * 0.3);
-    }
+        if(view.cursorType == 4){//курсор кружок
+            draws.arc(plx, ply, sra * 0.3);
+        }
 
-    if(showLog){//данные для дебагинга
-        draws.logs();
+        if(showLog){//данные для дебагинга
+            draws.logs();
+        }
     }
 }
