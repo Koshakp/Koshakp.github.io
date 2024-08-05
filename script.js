@@ -608,7 +608,7 @@ let enemy = {
     },
     interferenceCheck : function(){
         if(this.sgpos == locate.cam[view.cam.select][0] || this.gpos == locate.cam[view.cam.select][0]){
-            view.interference(true);
+            view.interference(1000);
         }
         this.sgpos = this.gpos;
     }
@@ -642,7 +642,6 @@ let view = {
         room : [0, 0, 0, 0],
         roomSkin : 1,
         enemyShow : false,
-        interferenceDuration : 1000,
         interferenceDelay : 0,
         interferenced : false,
         interferenceFrame : 0,
@@ -670,7 +669,7 @@ let view = {
         //аниматроник в комнате
         this.enemyCheck();
 
-        this.interference();
+        this.interference(-1);
 
         //смена положения с затемнением
         this.darkChange();
@@ -823,7 +822,10 @@ let view = {
             xcam = cw * 0.58 + (locate.cam[i][0] % locate.w) * wcams + wcams * 0.3 + wcams * 0.2 * lposcords[0];
             ycam = ch - wcams * mh - ch * 0.05 + Math.floor(locate.cam[i][0] / locate.w) * wcams + ycams + wcams * 0.3 + wcams * 0.2 * lposcords[1];
             if(inArea(plx, ply, xcam, ycam, wcams * 0.4, wcams * 0.4) && click && !sclick){
-                this.cam.select = i;
+                if(this.cam.select != i){
+                    this.cam.select = i;
+                    this.interference(200);
+                }
                 const loc = locate.peek(false, locate.cam[i][1], locate.cam[i][0]);
                 this.cam.room = loc.slice(1, 5);
                 this.cam.roomSkin = loc[0];
@@ -909,9 +911,11 @@ let view = {
         }
     },
     interference : function(put){//помехи
-        if(put){
-            this.cam.interferenceDelay = this.cam.interferenceDuration;
-            this.cam.interferenceFrameDelay = this.cam.interferenceFrameDuration;
+        if(put != -1){
+            if(this.cam.interferenceDelay < put){
+                this.cam.interferenceDelay = put;
+                this.cam.interferenceFrameDelay = this.cam.interferenceFrameDuration;
+            }
             this.cam.interferenced = true;
         }
         else if(this.cam.interferenced){
