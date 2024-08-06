@@ -19,8 +19,9 @@ let imageLoader = {
         }
     },
     loadProgress : 0,
+    rotateProgress : 0,
     loading : function(){
-        imageLoader.loadProgress++;
+        imageLoader.loadProgress += 1;
         if(imageLoader.loadProgress >= imageLoader.imgsrcs.length){
             imageLoader.rotateimgadd(['door0', 'door1', 'door2']);
         }
@@ -30,10 +31,8 @@ let imageLoader = {
     },
     rotateimgadd : function(a){
         for(const i of a){
-            img[`rotated${i}`] = spriteRotate(img[i], img[i].height * -0.13, img[i].height * -0.21);
-        }
-        for(const i of a.map(e=>`rotated${e}`)){
-            img[`mirrored${i}`] = spriteMirror(img[i], img[i].height * -0.13, img[i].height * -0.21);
+            img[`left${i}`] = spriteRotate(img[i], img[i].height * -0.13, img[i].height * -0.21, false);
+            img[`right${i}`] = spriteRotate(img[i], img[i].height * -0.13, img[i].height * -0.21, true);
         }
         start();
     },
@@ -99,7 +98,7 @@ function inArea(tx, ty, x, y, w, h){
         return false;
     }
 }
-function spriteRotate(sprite, top, bottom){
+function spriteRotate(sprite, top, bottom, mirror){
     const srcanvas = document.createElement('canvas');
     const srctx = srcanvas.getContext('2d');
     let zeroY = 0;
@@ -112,7 +111,10 @@ function spriteRotate(sprite, top, bottom){
     if(bottom > 0){
         srcanvas.height += bottom;
     }
-    srctx.clearRect(0, 0, srcanvas.width, srcanvas.height);
+    if(mirror){
+        srctx.translate(srcanvas.width, 0);
+        srctx.scale(-1, 1);
+    }
 
     for(let i = 0; i < srcanvas.width; i++){
         srctx.drawImage(sprite, i, 0, 1, sprite.height, i, zeroY + top * (i / (srcanvas.width - 1)), 1, bottom * (i / (srcanvas.width - 1)) - top * (i / (srcanvas.width - 1)) + sprite.height);
@@ -120,18 +122,6 @@ function spriteRotate(sprite, top, bottom){
     let rotatedSprite = new Image();
     rotatedSprite.src = srcanvas.toDataURL();
     return rotatedSprite;
-}
-function spriteMirror(sprite){
-    const smcanvas = document.createElement('canvas');
-    const smctx = smcanvas.getContext('2d');
-    smcanvas.width = sprite.width;
-    smcanvas.height = sprite.height;
-    smctx.translate(smcanvas.width, 0);
-    smctx.scale(-1, 1);
-    smctx.drawImage(sprite, 0, 0);
-    let mirroredSprite = new Image();
-    mirroredSprite.src = smcanvas.toDataURL();
-    return mirroredSprite;
 }
 function keyDown(e){
     switch(e.keyCode){
@@ -1031,13 +1021,13 @@ let draws = {
         //двери
         ctx.drawImage(img[`room${view.cam.roomSkin - 1}`], cw * 0.1, ch * 0.1 + y, cw * 0.8, ch * 0.9);
         if(view.cam.room[1] != 0){
-            ctx.drawImage(img[`rotateddoor${view.cam.room[1] - 1}`], cw * 0.1773, ch * 0.271 + y, cw * 0.0763, ch * 0.612);
+            ctx.drawImage(img[`leftdoor${view.cam.room[1] - 1}`], cw * 0.1773, ch * 0.271 + y, cw * 0.0763, ch * 0.612);
         }
         if(view.cam.room[2] != 0){
             ctx.drawImage(img[`door${view.cam.room[2] - 1}`], cw * 0.46, ch * 0.2521 + y, cw * 0.08, ch * 0.45);
         }
         if(view.cam.room[3] != 0){
-            ctx.drawImage(img[`mirroredrotateddoor${view.cam.room[3] - 1}`], cw * 0.7464, ch * 0.271 + y, cw * 0.0763, ch * 0.612);
+            ctx.drawImage(img[`rightdoor${view.cam.room[3] - 1}`], cw * 0.7464, ch * 0.271 + y, cw * 0.0763, ch * 0.612);
         }
 
         //аниматроник
@@ -1342,13 +1332,13 @@ function draw(){
         else{//комната
             ctx.drawImage(img[`room${view.roomSkin - 1}`], view.x * cw / -2, 0, cw * 1.5, ch);
             if(view.room[1] > 0 && view.room[1] < 4){
-                ctx.drawImage(img[`rotateddoor${view.room[1] - 1}`], view.x * cw / -2 + cw * 0.145, ch * 0.19, cw * 0.143, ch * 0.68);
+                ctx.drawImage(img[`leftdoor${view.room[1] - 1}`], view.x * cw / -2 + cw * 0.145, ch * 0.19, cw * 0.143, ch * 0.68);
             }
             if(view.room[2] > 0 && view.room[2] < 4){
                 ctx.drawImage(img[`door${view.room[2] - 1}`], view.x * cw / -2 + cw * 0.675, ch * 0.169, cw * 0.15, ch * 0.5);
             }
             if(view.room[3] > 0 && view.room[3] < 4){
-                ctx.drawImage(img[`mirroredrotateddoor${view.room[3] - 1}`], view.x * cw / -2 + cw * 1.212, ch * 0.19, cw * 0.143, ch * 0.68);
+                ctx.drawImage(img[`rightdoor${view.room[3] - 1}`], view.x * cw / -2 + cw * 1.212, ch * 0.19, cw * 0.143, ch * 0.68);
             }
             if(view.room[1] == 4){
                 ctx.drawImage(img.table, cw * 0.29 + view.x * cw / -2, ch * 0.56, cw * 0.25, ch * 0.25);
