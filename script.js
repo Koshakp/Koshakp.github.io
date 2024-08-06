@@ -10,7 +10,7 @@ canvas.addEventListener('mouseup', mouseUp);
 
 let img = {};
 let imageLoader = {
-    imgsrcs : ['doorLeft0', 'doorFront0', 'doorRight0', 'doorLeft1', 'doorFront1', 'doorRight1', 'doorLeft2', 'doorFront2', 'doorRight2', 'room0', 'room1', 'room2', 'keyhole', 'enemy', 'table', 'interference0', 'interference1', 'interference2'],//images
+    imgsrcs : ['door0', 'door1', 'door2', 'room0', 'room1', 'room2', 'keyhole', 'enemy', 'table', 'interference0', 'interference1', 'interference2'],//images
     imgadd : function(a){
         for(const i of a){
             img[i] = new Image();
@@ -22,11 +22,20 @@ let imageLoader = {
     loading : function(){
         imageLoader.loadProgress++;
         if(imageLoader.loadProgress >= imageLoader.imgsrcs.length){
-            start();
+            imageLoader.rotateimgadd(['door0', 'door1', 'door2']);
         }
         else if(performance.now() > 50){
             draws.loading();
         }
+    },
+    rotateimgadd : function(a){
+        for(const i of a){
+            img[`rotated${i}`] = spriteRotate(img[i], img[i].height * -0.13, img[i].height * -0.21);
+        }
+        for(const i of a.map(e=>`rotated${e}`)){
+            img[`mirrored${i}`] = spriteMirror(img[i], img[i].height * -0.13, img[i].height * -0.21);
+        }
+        start();
     },
     init : function(){
         this.imgadd(this.imgsrcs);
@@ -60,6 +69,7 @@ let click = false, sclick = false, rclick = false, srclick = false;
 let sra, cw, ch;
 let bw = false, ba = false, bs = false, bd = false;
 let showLog = false, showMap = false;
+let testimg;
 
 function mouseDown(e){
     if(e.button == 0){
@@ -81,7 +91,6 @@ function mouseUp(e){
         rclick = false;
     }
 }
-
 function inArea(tx, ty, x, y, w, h){
     if(tx > x && tx < x + w && ty > y && ty < y + h){
         return true;
@@ -90,7 +99,40 @@ function inArea(tx, ty, x, y, w, h){
         return false;
     }
 }
+function spriteRotate(sprite, top, bottom){
+    const srcanvas = document.createElement('canvas');
+    const srctx = srcanvas.getContext('2d');
+    let zeroY = 0;
+    srcanvas.width = sprite.width;
+    srcanvas.height = sprite.height;
+    if(top < 0){
+        srcanvas.height -= top;
+        zeroY = -top;
+    }
+    if(bottom > 0){
+        srcanvas.height += bottom;
+    }
+    srctx.clearRect(0, 0, srcanvas.width, srcanvas.height);
 
+    for(let i = 0; i < srcanvas.width; i++){
+        srctx.drawImage(sprite, i, 0, 1, sprite.height, i, zeroY + top * (i / (srcanvas.width - 1)), 1, bottom * (i / (srcanvas.width - 1)) - top * (i / (srcanvas.width - 1)) + sprite.height);
+    }
+    let rotatedSprite = new Image();
+    rotatedSprite.src = srcanvas.toDataURL();
+    return rotatedSprite;
+}
+function spriteMirror(sprite){
+    const smcanvas = document.createElement('canvas');
+    const smctx = smcanvas.getContext('2d');
+    smcanvas.width = sprite.width;
+    smcanvas.height = sprite.height;
+    smctx.translate(smcanvas.width, 0);
+    smctx.scale(-1, 1);
+    smctx.drawImage(sprite, 0, 0);
+    let mirroredSprite = new Image();
+    mirroredSprite.src = smcanvas.toDataURL();
+    return mirroredSprite;
+}
 function keyDown(e){
     switch(e.keyCode){
         case 87:
@@ -107,7 +149,6 @@ function keyDown(e){
             break;
     }
 }
-
 function keyUp(e){
     switch(e.keyCode){
         case 87:
@@ -124,7 +165,6 @@ function keyUp(e){
             break;
     }
 }
-
 function resize(){
     canvas.width = window.innerWidth;
     canvas.height = window.innerHeight;
@@ -134,15 +174,14 @@ function resize(){
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
 }
-
 function stop(){
     run = false;
 }
-
 function start(){
     run = true;
     requestAnimationFrame(update);
 }
+
 
 resize();
 
@@ -992,13 +1031,13 @@ let draws = {
         //двери
         ctx.drawImage(img[`room${view.cam.roomSkin - 1}`], cw * 0.1, ch * 0.1 + y, cw * 0.8, ch * 0.9);
         if(view.cam.room[1] != 0){
-            ctx.drawImage(img[`doorLeft${view.cam.room[1] - 1}`], cw * 0.1773, ch * 0.271 + y, cw * 0.0763, ch * 0.612);
+            ctx.drawImage(img[`rotateddoor${view.cam.room[1] - 1}`], cw * 0.1773, ch * 0.271 + y, cw * 0.0763, ch * 0.612);
         }
         if(view.cam.room[2] != 0){
-            ctx.drawImage(img[`doorFront${view.cam.room[2] - 1}`], cw * 0.46, ch * 0.2521 + y, cw * 0.08, ch * 0.45);
+            ctx.drawImage(img[`door${view.cam.room[2] - 1}`], cw * 0.46, ch * 0.2521 + y, cw * 0.08, ch * 0.45);
         }
         if(view.cam.room[3] != 0){
-            ctx.drawImage(img[`doorRight${view.cam.room[3] - 1}`], cw * 0.7464, ch * 0.271 + y, cw * 0.0763, ch * 0.612);
+            ctx.drawImage(img[`mirroredrotateddoor${view.cam.room[3] - 1}`], cw * 0.7464, ch * 0.271 + y, cw * 0.0763, ch * 0.612);
         }
 
         //аниматроник
@@ -1297,19 +1336,19 @@ function draw(){
                 ctx.fillStyle = '#131A12';
             }
             ctx.fillRect(0, 0, cw, ch);
-            ctx.drawImage(img[`doorFront${view.room[0] - 1}`], cw / 4, ch * -0.1, cw / 2, cw * 235 / 288);
+            ctx.drawImage(img[`door${view.room[0] - 1}`], cw / 4, ch * -0.1, cw / 2, cw * 235 / 288);
             draws.peek();
         }
         else{//комната
             ctx.drawImage(img[`room${view.roomSkin - 1}`], view.x * cw / -2, 0, cw * 1.5, ch);
             if(view.room[1] > 0 && view.room[1] < 4){
-                ctx.drawImage(img[`doorLeft${view.room[1] - 1}`], view.x * cw / -2 + cw * 0.145, ch * 0.19, cw * 0.143, ch * 0.68);
+                ctx.drawImage(img[`rotateddoor${view.room[1] - 1}`], view.x * cw / -2 + cw * 0.145, ch * 0.19, cw * 0.143, ch * 0.68);
             }
             if(view.room[2] > 0 && view.room[2] < 4){
-                ctx.drawImage(img[`doorFront${view.room[2] - 1}`], view.x * cw / -2 + cw * 0.675, ch * 0.169, cw * 0.15, ch * 0.5);
+                ctx.drawImage(img[`door${view.room[2] - 1}`], view.x * cw / -2 + cw * 0.675, ch * 0.169, cw * 0.15, ch * 0.5);
             }
             if(view.room[3] > 0 && view.room[3] < 4){
-                ctx.drawImage(img[`doorRight${view.room[3] - 1}`], view.x * cw / -2 + cw * 1.212, ch * 0.19, cw * 0.143, ch * 0.68);
+                ctx.drawImage(img[`mirroredrotateddoor${view.room[3] - 1}`], view.x * cw / -2 + cw * 1.212, ch * 0.19, cw * 0.143, ch * 0.68);
             }
             if(view.room[1] == 4){
                 ctx.drawImage(img.table, cw * 0.29 + view.x * cw / -2, ch * 0.56, cw * 0.25, ch * 0.25);
