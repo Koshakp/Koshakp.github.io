@@ -8,9 +8,12 @@ canvas.addEventListener('mousedown', mouseDown);
 canvas.addEventListener('mousemove', mouseMove);
 canvas.addEventListener('mouseup', mouseUp);
 
+let manyImg = (name, amount) => Array(amount).fill('').map((e,i)=>name+i);
 let img = {};
 let imageLoader = {
-    imgsrcs : ['door0', 'door1', 'door2', 'room0', 'room1', 'room2', 'keyhole', 'enemy', 'table', 'interference0', 'interference1', 'interference2'],//images
+    imgsrcs : [...manyImg('door', 3), ...manyImg('room', 3), 'keyhole', 'enemy', 'table', ...manyImg('interference', 3), ...manyImg('ambient', 10)],//images
+    rotatedDoorImgSrcs : [...manyImg('door', 3)],
+    rotatedAmbientImgSrcs : [...manyImg('ambient', 10)],
     imgadd : function(a){
         for(const i of a){
             img[i] = new Image();
@@ -19,22 +22,27 @@ let imageLoader = {
         }
     },
     loadProgress : 0,
-    rotateProgress : 0,
+    rotateDoorProgress : 0,
     loading : function(){
         imageLoader.loadProgress += 1;
         if(imageLoader.loadProgress >= imageLoader.imgsrcs.length){
-            imageLoader.rotateimgadd(['door0', 'door1', 'door2']);
+            imageLoader.rotateimgadd(imageLoader.rotatedDoorImgSrcs, imageLoader.rotatedAmbientImgSrcs);
         }
         else if(performance.now() > 50){
             draws.loading();
         }
     },
-    rotateimgadd : function(a){
+    rotateimgadd : function(a, b){
         for(const i of a){
             img[`left${i}`] = spriteRotate(img[i], img[i].height * -0.13, img[i].height * -0.21, false);
-            img[`right${i}`] = spriteRotate(img[i], img[i].height * -0.13, img[i].height * -0.21, true);
+            img[`right${i}`] = spriteRotate(img[i], img[i].height * 0.13, img[i].height * 0.21, false);
+        }
+        for(const i of b){
+            img[`left${i}`] = spriteRotate(img[i], 0, img[i].height * -0.11, false);
+            img[`right${i}`] = spriteRotate(img[i], 0, img[i].height * 0.11, false);
         }
         start();
+        
     },
     init : function(){
         this.imgadd(this.imgsrcs);
@@ -177,11 +185,14 @@ resize();
 
 let game = {
     type : 0,
+    winEndMenu : false,
     time : 0,
     endTime : 240000,
     showMinutes : false,
     shows : [false, false],
     clock : ['12', '00'],
+    sinusoida : 0,
+    timeTrack : 0,
     update : function(){
         this.time += time.delta;
 
@@ -192,6 +203,7 @@ let game = {
         }
 
         this.showsUpdate();
+        this.sinUpdate();
     },
     clockUpdate : function(){
         const hourN = Math.floor(this.time / this.endTime * 6);
@@ -217,23 +229,36 @@ let game = {
         }
     },
     dead : function(){
+        this.type = 2;
         this.showMinutes = true;
         this.clockUpdate();
-        ctx.fillStyle = '#000';
-        ctx.fillRect(0, 0, cw, ch);
-        ctx.fillStyle = '#FFF';
-        ctx.font = `normal ${cw * 0.02}px arial`;
-        ctx.fillText('GAME OVER', cw * 0.5, ch * 0.5);
-        ctx.fillText(`${this.clock[0]} : ${this.clock[1]}`, cw * 0.5, ch * 0.55);
-        stop();
+        this.winEndMenu = false;
     },
     win : function(){
-        ctx.fillStyle = '#000';
-        ctx.fillRect(0, 0, cw, ch);
-        ctx.fillStyle = '#FFF';
-        ctx.font = `normal ${cw * 0.02}px arial`;
-        ctx.fillText('06 : 00', cw * 0.5, ch * 0.5);
-        stop();
+        this.type = 2;
+        this.winEndMenu = true;
+    },
+    restart : function(){
+        this.type = 0;
+        this.time = 0;
+        locate.gpos = locate.startGpos;
+        locate.lpos = locate.startLpos;
+        enemy.init();
+        view.changeProgress = 1;
+        view.changeCompleted = true;
+        view.roomType = 0;
+        view.init();
+        view.enemyShow = false;
+        view.tab.move = 0;
+        view.tab.y = 1;
+        view.cam.select = 0;
+    },
+    sinUpdate : function(){//синусоидальное движение объектов интерфейса
+        this.timeTrack += 0.002 * time.delta;
+        if(this.timeTrack >= 1){
+            this.timeTrack -= 1;
+        }
+        this.sinusoida = Math.sin(this.timeTrack * Math.PI * 2);
     },
     showsUpdate : function(){//чит панель (логи и карта)
         if(bs){
@@ -270,6 +295,11 @@ let menu = {
         this.buttonPlay();
         this.buttonNight();
         this.customSettings();
+    },
+    endUpdate : function(){
+        if(inArea(plx, ply, cw * 0.4, ch * 0.9, cw * 0.2, ch * 0.1) && click && !sclick){
+            game.restart();
+        }
     },
     customSettings : function(){
         if(this.night == 7){
@@ -335,8 +365,10 @@ let menu = {
 menu.init();
 
 let locate = {
-    gpos : 14,
-    lpos : 3,
+    startGpos : 14,
+    startLpos : 3,
+    gpos : 0,
+    lpos : 0,
     w : 6,
     firstMapa : [
         1, 1, 1, 1, 1, 0,
@@ -353,8 +385,39 @@ let locate = {
         [19, 0],
         [21, 3]
     ],
+    firstAmbient : [
+        [1, 3, 3],
+        [2, 2, 2],
+        [1, 3, 7],
+        [13, 0, 0],
+        [13, 1, 4],
+        [6, 1, 9],
+        [15, 5, 2],
+        [8, 4, 8],
+        [3, 7, 7],
+        [3, 2, 6],
+        [4, 5, 1],
+        [16, 4, 0],
+        [16, 0, 5],
+        [22, 6, 3],
+        [21, 6, 2],
+        [21, 1, 4],
+        [20, 0, 0],
+        [20, 3, 8],
+        [19, 1, 2],
+        [19, 6, 6],
+        [19, 7, 7],
+        [7, 6, 2],
+        [7, 2, 5],
+        [9, 3, 7],
+        [9, 7, 7],
+        [9, 2, 0],
+        [10, 5, 6],
+        [4, 1, 3]
+    ],
+    ambient : [],
     mapa : [],
-    go : function(type, n, p){//локал? куда, пробой : лпос, гпос
+    go : function(type, n, p){//локал ? (куда, пробой) : (лпос, гпос)
         if(type !== false){
             let lpos = type[0];
             let gpos = type[1];
@@ -371,12 +434,24 @@ let locate = {
             }
             this.lpos = lpos;
             this.gpos = gpos;
-            return [this.mapa[gpos][0], ...this.rotor(lpos, gpos), gpos, lpos];
+            return {
+                roomSkin : this.mapa[gpos][0],
+                room : this.rotor(lpos, gpos),
+                gpos : gpos,
+                lpos : lpos,
+                ambient : this.ambientCheck(gpos, lpos)
+            };
         }
         else{
             this.lpos = n;
             this.gpos = p;
-            return [this.mapa[this.gpos][0], ...this.rotor(this.lpos, this.gpos), this.gpos, this.gpos];
+            return {
+                roomSkin : this.mapa[this.gpos][0],
+                room : this.rotor(this.lpos, this.gpos),
+                gpos : this.gpos,
+                lpos : this.lpos,
+                ambient : this.ambientCheck(this.gpos, this.lpos)
+            };
         }
     },
     peek : function(type, n, p){
@@ -394,10 +469,22 @@ let locate = {
                 }
                 gpos = this.sdvig(lpos, gpos);
             }
-            return [this.mapa[gpos][0], ...this.rotor(lpos, gpos), gpos, lpos];
+            return {
+                roomSkin : this.mapa[gpos][0],
+                room : this.rotor(lpos, gpos),
+                gpos : gpos,
+                lpos : lpos,
+                ambient : this.ambientCheck(gpos, lpos)
+            };
         }
         else{
-            return [this.mapa[p][0], ...this.rotor(n, p), n, p];
+            return {
+                roomSkin : this.mapa[p][0],
+                room : this.rotor(n, p),
+                gpos : p,
+                lpos : n,
+                ambient : this.ambientCheck(p, n)
+            };
         }
     },
     rotor : function(pos, g){
@@ -475,7 +562,20 @@ let locate = {
         }
         return a;
     },
+    ambientCheck : function(g, l){
+        let out = Array(8).fill(null);
+        for(let i = 0; i < this.ambient[g].length; i++){
+            let j = this.ambient[g][i].pos - l * 2;
+            if(j < 0){
+                j += 8;
+            }
+            out[j] = this.ambient[g][i].type;
+        }
+        return out;
+    },
     init : function(){
+        this.gpos = this.startGpos;
+        this.lpos = this.startLpos;
         for(let i = 0; i < this.firstMapa.length; i++){
             if(this.firstMapa[i] == 0){
                 this.mapa.push([0]);
@@ -514,12 +614,25 @@ let locate = {
         this.addWall(14, false);
         this.addWall(15, true);
         this.mapa[14][4] = 4;
+
+        this.ambient = Array(this.mapa.length).fill(Array(0));
+        for(const i of this.firstAmbient){
+            const putobj = {pos : i[1], type : i[2]};
+            if(this.ambient[i[0]].length == 0){
+                this.ambient[i[0]] = [putobj];
+            }
+            else{
+                this.ambient[i[0]].push(putobj);
+            }
+        }
     }
 };
 locate.init();
 
 let enemy = {
-    gpos : 11,
+    startGpos : 11,
+    startLpos : 0,
+    gpos : 0,
     lpos : 0,
     delay : 7000,
     agr : false,
@@ -572,7 +685,7 @@ let enemy = {
     },
     move : function(){
         if(this.target == -1){
-            const loc = locate.peek(false, 0, this.gpos).slice(1, 5);
+            const loc = locate.peek(false, 0, this.gpos).room;
             let chanse = loc.map((e, i) =>{
                 if(e == 0 || e == 4){
                     return 0;
@@ -603,8 +716,8 @@ let enemy = {
             if(ans == this.lpos){
                 this.spos = -1;
                 const goloc = locate.peek([0, this.gpos], ans, true);
-                this.gpos = goloc[5];
-                this.lpos = goloc[6];
+                this.gpos = goloc.gpos;
+                this.lpos = goloc.lpos;
             }
             else{
                 this.spos = this.lpos;
@@ -615,8 +728,8 @@ let enemy = {
             if(this.target == this.lpos){
                 this.spos = -1;
                 const goloc = locate.peek([0, this.gpos], this.lpos, true);
-                this.gpos = goloc[5];
-                this.lpos = goloc[6];
+                this.gpos = goloc.gpos;
+                this.lpos = goloc.lpos;
             }
             else{
                 this.spos = this.lpos;
@@ -640,16 +753,19 @@ let enemy = {
             view.interference(1000);
         }
         this.sgpos = this.gpos;
+    },
+    init : function(){
+        this.gpos = this.startGpos;
+        this.lpos = this.startLpos;
     }
 };
+enemy.init();
 
 let view = {
     xSpeed : 0.002,
     x : 0.5,
     gpos : 0,
     lpos : 0,
-    sinusoida : 0,
-    timeTrack : 0,
     cursorType : -1,
     changeProgress : 1,
     changeCompleted : true,
@@ -659,7 +775,7 @@ let view = {
     roomType : 0,//0 go, 1 door, 2 peek
     roomSkin : 3,
     enemyShow : false,
-    shows : [false, false],
+    ambient : Array(8).fill(null),
     tab : {
         sOutBut : true,
         move : 0,
@@ -675,8 +791,17 @@ let view = {
         interferenced : false,
         interferenceFrame : 0,
         interferenceFrameDuration : 50,
-        interferenceFrameDelay : 0
+        interferenceFrameDelay : 0,
+        ambient : Array(8).fill(null)
     },
+    ambientSpriteCords : [
+        [0.009, 0, 0.085, 0.99],
+        [0.19, 0, 0.06, 0.745],
+        [0.25, 0, 0.2, 0.67],
+        [0.55, 0, 0.2, 0.67],
+        [0.75, 0, 0.06, 0.745],
+        [0.91, 0, 0.085, 0.99]
+    ],
     update : function(){
         //движение по краям экрана
         this.camRotate();
@@ -702,9 +827,6 @@ let view = {
 
         //смена положения с затемнением
         this.darkChange();
-
-        //синусоидальное прыганье стрелочки и показ логов и карты
-        this.sinUpdate();
     },
     roomActions : function(){//roomType == 0
         //двери
@@ -856,8 +978,9 @@ let view = {
                     this.interference(200);
                 }
                 const loc = locate.peek(false, locate.cam[i][1], locate.cam[i][0]);
-                this.cam.room = loc.slice(1, 5);
-                this.cam.roomSkin = loc[0];
+                this.cam.room = loc.room;
+                this.cam.roomSkin = loc.roomSkin;
+                this.cam.ambient = loc.ambient;
             }
         }
 
@@ -897,7 +1020,7 @@ let view = {
         }
 
         //смена комнаты
-        let loc = [];
+        let loc = {};
         if(this.changeWait[2] == 0){
             loc = locate.go([locate.lpos, locate.gpos], this.changeWait[0], this.changeWait[1]);
             this.roomType = 0;
@@ -910,10 +1033,11 @@ let view = {
             loc = locate.peek([locate.lpos, locate.gpos], this.changeWait[0], this.changeWait[1]);
             this.roomType = 2;
         }
-        this.room = loc.slice(1, 5);
-        this.roomSkin = loc[0];
-        this.gpos = loc[5];
-        this.lpos = loc[6];
+        this.room = loc.room;
+        this.roomSkin = loc.roomSkin;
+        this.gpos = loc.gpos;
+        this.lpos = loc.lpos;
+        this.ambient = loc.ambient;
         this.x = 0.5;
         this.changeCompleted = true;
     },
@@ -963,22 +1087,15 @@ let view = {
             }
         }
     },
-    sinUpdate : function(){//синусоидальное движение объектов интерфейса
-        this.timeTrack += 0.002 * time.delta;
-        if(this.timeTrack >= 1){
-            this.timeTrack -= 1;
-        }
-        this.sinusoida = Math.sin(this.timeTrack * Math.PI * 2);
-    },
     init : function(){
         const loc = locate.peek(false, locate.lpos, locate.gpos);
-        this.room = loc.slice(1, 5);
-        this.roomSkin = loc[0];
+        this.room = loc.room;
+        this.roomSkin = loc.roomSkin;
         this.gpos = locate.gpos;
         this.lpos = locate.lpos;
         const camLoc = locate.peek(false, locate.cam[0][1], locate.cam[0][0]);
-        this.cam.room = camLoc.slice(1, 5);
-        this.cam.roomSkin = camLoc[0];
+        this.cam.room = camLoc.room;
+        this.cam.roomSkin = camLoc.roomSkin;
     }
 };
 view.init();
@@ -998,6 +1115,9 @@ function update(){
         view.update();
         game.update();
     }
+    else if(game.type == 2){
+        menu.endUpdate();
+    }
 
 	sclick = click; srclick = rclick;
     if(run){
@@ -1007,6 +1127,47 @@ function update(){
 }
 
 let draws = {
+    room : function(x, y, w, h, a, rs, r, amb){
+        //комната
+        ctx.drawImage(img[`room${rs - 1}`], x, y, w, h);
+        //двери
+        if(r[1] > 0 && r[1] < 4){
+            ctx.drawImage(img[`leftdoor${r[1] - 1}`], x + w * 0.0967, y + h * 0.19, w * 0.0953 , h * 0.68);
+        }
+        if(r[2] > 0 && r[2] < 4){
+            ctx.drawImage(img[`door${r[2] - 1}`], x + w * 0.45, y + h * 0.169, w * 0.1, h * 0.5);
+        }
+        if(r[3] > 0 && r[3] < 4){
+            ctx.drawImage(img[`rightdoor${r[3] - 1}`], x + w * 0.808, y + h * 0.19, w * 0.0953, h * 0.68);
+        }
+        if(r[1] == 4){
+            ctx.drawImage(img.table, w * 0.1933 + x, y + h * 0.56, w * 0.1667, h * 0.25);
+        }
+        else if(r[3] == 4){
+            ctx.drawImage(img.table, w * 0.64 + x, y + h * 0.56, w * 0.1667, h * 0.25);
+        }
+        else if(r[0] == 4){
+            ctx.drawImage(img.table, w * 0.2333 + x, y + h * 0.4, w * 0.5333, h * 0.6);
+        }
+
+        //эмбиент
+        this.ambient(x, y, w, h, amb);
+
+        if(a != -1){//аниматроник
+            if(a == 0){
+                ctx.drawImage(img.enemy, w * 0.2957 + x, y + h * -0.2, w * 0.4087, h * 2);
+            }
+            else if(a == 1){
+                ctx.drawImage(img.enemy, x + w * 0.1533, y + h * 0.25, w * 0.1333, h * 0.6264);
+            }
+            else if(a == 2){
+                ctx.drawImage(img.enemy, x + w * 0.45, y + h * 0.21, w * 0.1, h * 0.5448);
+            }
+            else{
+                ctx.drawImage(img.enemy, x + w * 0.7133, y + h * 0.25, w * 0.1333, h * 0.6264);
+            }
+        }
+    },
     tablet : function(){
         const y = view.tab.y * ch * 0.9;
         const ots = cw * 0.02;
@@ -1018,105 +1179,12 @@ let draws = {
         ctx.strokeRect(cw * 0.1, ch * 0.1 + y, cw * 0.8, ch * 0.9 - sra * 0.03);
 
         //экран камеры
-        //двери
-        ctx.drawImage(img[`room${view.cam.roomSkin - 1}`], cw * 0.1, ch * 0.1 + y, cw * 0.8, ch * 0.9);
-        if(view.cam.room[1] != 0){
-            ctx.drawImage(img[`leftdoor${view.cam.room[1] - 1}`], cw * 0.1773, ch * 0.271 + y, cw * 0.0763, ch * 0.612);
-        }
-        if(view.cam.room[2] != 0){
-            ctx.drawImage(img[`door${view.cam.room[2] - 1}`], cw * 0.46, ch * 0.2521 + y, cw * 0.08, ch * 0.45);
-        }
-        if(view.cam.room[3] != 0){
-            ctx.drawImage(img[`rightdoor${view.cam.room[3] - 1}`], cw * 0.7464, ch * 0.271 + y, cw * 0.0763, ch * 0.612);
-        }
-
-        //аниматроник
-        if(view.cam.enemyShow !== false){
-            if(view.cam.enemyShow == 0){
-                ctx.drawImage(img.enemy, cw * 0.02, ch * 0.3 + y, cw * 1, ch * 2);
-            }
-            else if(view.cam.enemyShow == 1){
-                ctx.drawImage(img.enemy, cw * 0.22, ch * 0.35 + y, cw * 0.15, ch * 0.5);
-            }
-            else if(view.cam.enemyShow == 2){
-                ctx.drawImage(img.enemy, cw * 0.43, ch * 0.3 + y, cw * 0.15, ch * 0.5);
-            }
-            else{
-                ctx.drawImage(img.enemy, cw * 0.63, ch * 0.35 + y, cw * 0.15, ch * 0.5);
-            }
-        }
+        this.room(cw * 0.1, ch * 0.1 + y, cw * 0.8, ch * 0.9, view.cam.enemyShow !== false ? view.cam.enemyShow : -1, view.cam.roomSkin, view.cam.room, view.cam.ambient);
 
         this.interference(cw * 0.1, ch * 0.1 + y, cw * 0.8, ch * 0.9);//помехи
 
         //карта
-        ctx.lineWidth = sra * 0.01;
-        ctx.strokeStyle = '#999';
-        const w = cw * 0.3 / locate.w;
-        const mh = locate.mapa.length / locate.w;
-        for(let i = 0; i < locate.mapa.length; i++){//проходы
-            if(locate.mapa[i][0] != 0){
-                ctx.strokeStyle = '#999';
-                if(locate.mapa[i][1] != 0){
-                    ctx.beginPath();
-                    ctx.moveTo(cw * 0.58 + (i % locate.w) * w - w * 0.1, ch - w * mh - ch * 0.05 + Math.floor(i / locate.w) * w + y + w * 0.4);
-                    ctx.lineTo(cw * 0.58 + (i % locate.w) * w + w * 0.1, ch - w * mh - ch * 0.05 + Math.floor(i / locate.w) * w + y + w * 0.4);
-                    ctx.moveTo(cw * 0.58 + (i % locate.w) * w - w * 0.1, ch - w * mh - ch * 0.05 + Math.floor(i / locate.w) * w + y + w * 0.6);
-                    ctx.lineTo(cw * 0.58 + (i % locate.w) * w + w * 0.1, ch - w * mh - ch * 0.05 + Math.floor(i / locate.w) * w + y + w * 0.6);
-                    ctx.stroke();
-                    ctx.closePath();
-                }
-                if(locate.mapa[i][2] != 0){
-                    ctx.beginPath();
-                    ctx.moveTo(cw * 0.58 + (i % locate.w) * w + w * 0.4, ch - w * mh - ch * 0.05 + Math.floor(i / locate.w) * w + y - w * 0.1);
-                    ctx.lineTo(cw * 0.58 + (i % locate.w) * w + w * 0.4, ch - w * mh - ch * 0.05 + Math.floor(i / locate.w) * w + y + w * 0.1);
-                    ctx.moveTo(cw * 0.58 + (i % locate.w) * w + w * 0.6, ch - w * mh - ch * 0.05 + Math.floor(i / locate.w) * w + y - w * 0.1);
-                    ctx.lineTo(cw * 0.58 + (i % locate.w) * w + w * 0.6, ch - w * mh - ch * 0.05 + Math.floor(i / locate.w) * w + y + w * 0.1);
-                    ctx.stroke();
-                    ctx.closePath();
-                }
-            }
-        }
-        for(let i = 0; i < locate.mapa.length; i++){//комнаты
-            if(locate.mapa[i][0] != 0){
-                if(locate.mapa[i][0] == 1){
-                    ctx.strokeStyle = '#999';
-                }
-                else if(locate.mapa[i][0] == 2){
-                    ctx.strokeStyle = '#33B';
-                }
-                else if(locate.mapa[i][0] == 3){
-                    ctx.strokeStyle = '#3B3';
-                }
-                ctx.strokeRect(cw * 0.58 + (i % locate.w) * w + w * 0.1, ch - w * mh - ch * 0.05 + Math.floor(i / locate.w) * w + y + w * 0.1, w * 0.8, w * 0.8);
-            }
-        }
-
-        //кнопки камер на карте
-        ctx.lineWidth = sra * 0.01;
-        for(let i = 0, lposcords = [0, 0], xcam = 0, ycam = 0; i < locate.cam.length; i++){
-            lposcords = locate.lposToCords(locate.cam[i][1]);
-            xcam = cw * 0.58 + (locate.cam[i][0] % locate.w) * w + w * 0.3 + w * 0.2 * lposcords[0];
-            ycam = ch - w * mh - ch * 0.05 + Math.floor(locate.cam[i][0] / locate.w) * w + y + w * 0.3 + w * 0.2 * lposcords[1];
-            ctx.fillStyle = 'rgba(200, 200, 200, 0.4)';
-            if(i == view.cam.select){
-                ctx.strokeStyle = '#5F5';
-            }
-            else{
-                ctx.strokeStyle = '#FFF';
-            }
-            ctx.fillRect(xcam, ycam, w * 0.4, w * 0.4);
-            ctx.strokeRect(xcam, ycam, w * 0.4, w * 0.4);
-            ctx.fillStyle = '#000';
-            ctx.font = `normal ${cw * 0.015}px arial`;
-            ctx.fillText(i + 1, xcam + w * 0.2, ycam + w * 0.2);
-        }
-
-        //аниматроник (чит)
-        if(showMap){
-            ctx.fillStyle = '#B33';
-            const lposcords = locate.lposToCords(enemy.lpos);
-            ctx.fillRect(cw * 0.58 + (enemy.gpos % locate.w) * w + w * 0.4 + w * 0.3 * lposcords[0], ch - w * mh - ch * 0.05 + Math.floor(enemy.gpos / locate.w) * w + y + w * 0.4  + w * 0.3 * lposcords[1], w * 0.2, w * 0.2);
-        }
+        this.tabletMap(y);
     },
     interference : function(x, y, w, h){
         if(view.cam.interferenced){
@@ -1124,7 +1192,7 @@ let draws = {
         }
     },
     arrow : function(x, y, w, n){
-        const otst = view.sinusoida * sra * 0.1;
+        const otst = game.sinusoida * sra * 0.1;
         ctx.strokeStyle = '#000';
         ctx.fillStyle = '#BBB';
         ctx.lineWidth = w * 0.1;
@@ -1165,7 +1233,7 @@ let draws = {
         ctx.fillRect(0, 0, cw, ch);
     },
     arc : function(x, y, w){
-        const otst = view.sinusoida * sra * 0.1;
+        const otst = game.sinusoida * sra * 0.1;
         ctx.beginPath();
         ctx.moveTo(x + sra * 0.4 + w + otst * sra * 0.002, y - sra * 0.4);
         ctx.lineWidth = w * 0.5;
@@ -1305,6 +1373,113 @@ let draws = {
         ctx.fillRect(x, y + h / 3, w, h / 3);
         ctx.fillStyle = '#FFF';
         ctx.fillRect(x + p * w - h / 6, y, h / 3, h);
+    },
+    loose : function(){
+        ctx.fillStyle = '#000';
+        ctx.fillRect(0, 0, cw, ch);
+        ctx.fillStyle = '#FFF';
+        ctx.font = `normal ${cw * 0.02}px arial`;
+        ctx.fillText('GAME OVER', cw * 0.5, ch * 0.5);
+        ctx.fillText(`${game.clock[0]} : ${game.clock[1]}`, cw * 0.5, ch * 0.55);
+        ctx.fillText('MENU', cw * 0.5, ch * 0.95);
+    },
+    win : function(){
+        ctx.fillStyle = '#000';
+        ctx.fillRect(0, 0, cw, ch);
+        ctx.fillStyle = '#FFF';
+        ctx.font = `normal ${cw * 0.02}px arial`;
+        ctx.fillText('06 : 00', cw * 0.5, ch * 0.5);
+        ctx.fillText('MENU', cw * 0.5, ch * 0.95);
+    },
+    tabletMap : function(y){
+        ctx.lineWidth = sra * 0.01;
+        ctx.strokeStyle = '#999';
+        const w = cw * 0.3 / locate.w;
+        const mh = locate.mapa.length / locate.w;
+        for(let i = 0; i < locate.mapa.length; i++){//проходы
+            if(locate.mapa[i][0] != 0){
+                ctx.strokeStyle = '#999';
+                if(locate.mapa[i][1] != 0){
+                    ctx.beginPath();
+                    ctx.moveTo(cw * 0.58 + (i % locate.w) * w - w * 0.1, ch - w * mh - ch * 0.05 + Math.floor(i / locate.w) * w + y + w * 0.4);
+                    ctx.lineTo(cw * 0.58 + (i % locate.w) * w + w * 0.1, ch - w * mh - ch * 0.05 + Math.floor(i / locate.w) * w + y + w * 0.4);
+                    ctx.moveTo(cw * 0.58 + (i % locate.w) * w - w * 0.1, ch - w * mh - ch * 0.05 + Math.floor(i / locate.w) * w + y + w * 0.6);
+                    ctx.lineTo(cw * 0.58 + (i % locate.w) * w + w * 0.1, ch - w * mh - ch * 0.05 + Math.floor(i / locate.w) * w + y + w * 0.6);
+                    ctx.stroke();
+                    ctx.closePath();
+                }
+                if(locate.mapa[i][2] != 0){
+                    ctx.beginPath();
+                    ctx.moveTo(cw * 0.58 + (i % locate.w) * w + w * 0.4, ch - w * mh - ch * 0.05 + Math.floor(i / locate.w) * w + y - w * 0.1);
+                    ctx.lineTo(cw * 0.58 + (i % locate.w) * w + w * 0.4, ch - w * mh - ch * 0.05 + Math.floor(i / locate.w) * w + y + w * 0.1);
+                    ctx.moveTo(cw * 0.58 + (i % locate.w) * w + w * 0.6, ch - w * mh - ch * 0.05 + Math.floor(i / locate.w) * w + y - w * 0.1);
+                    ctx.lineTo(cw * 0.58 + (i % locate.w) * w + w * 0.6, ch - w * mh - ch * 0.05 + Math.floor(i / locate.w) * w + y + w * 0.1);
+                    ctx.stroke();
+                    ctx.closePath();
+                }
+            }
+        }
+        for(let i = 0; i < locate.mapa.length; i++){//комнаты
+            if(locate.mapa[i][0] != 0){
+                if(locate.mapa[i][0] == 1){
+                    ctx.strokeStyle = '#999';
+                }
+                else if(locate.mapa[i][0] == 2){
+                    ctx.strokeStyle = '#33B';
+                }
+                else if(locate.mapa[i][0] == 3){
+                    ctx.strokeStyle = '#3B3';
+                }
+                ctx.strokeRect(cw * 0.58 + (i % locate.w) * w + w * 0.1, ch - w * mh - ch * 0.05 + Math.floor(i / locate.w) * w + y + w * 0.1, w * 0.8, w * 0.8);
+            }
+        }
+
+        //кнопки камер на карте
+        ctx.lineWidth = sra * 0.01;
+        for(let i = 0, lposcords = [0, 0], xcam = 0, ycam = 0; i < locate.cam.length; i++){
+            lposcords = locate.lposToCords(locate.cam[i][1]);
+            xcam = cw * 0.58 + (locate.cam[i][0] % locate.w) * w + w * 0.3 + w * 0.2 * lposcords[0];
+            ycam = ch - w * mh - ch * 0.05 + Math.floor(locate.cam[i][0] / locate.w) * w + y + w * 0.3 + w * 0.2 * lposcords[1];
+            ctx.fillStyle = 'rgba(200, 200, 200, 0.4)';
+            if(i == view.cam.select){
+                ctx.strokeStyle = '#5F5';
+            }
+            else{
+                ctx.strokeStyle = '#FFF';
+            }
+            ctx.fillRect(xcam, ycam, w * 0.4, w * 0.4);
+            ctx.strokeRect(xcam, ycam, w * 0.4, w * 0.4);
+            ctx.fillStyle = '#000';
+            ctx.font = `normal ${cw * 0.015}px arial`;
+            ctx.fillText(i + 1, xcam + w * 0.2, ycam + w * 0.2);
+        }
+
+        //maphack
+        if(showMap){
+            ctx.fillStyle = '#B33';
+            let lposcords = locate.lposToCords(enemy.lpos);
+            ctx.fillRect(cw * 0.58 + (enemy.gpos % locate.w) * w + w * 0.4 + w * 0.3 * lposcords[0], ch - w * mh - ch * 0.05 + Math.floor(enemy.gpos / locate.w) * w + y + w * 0.4  + w * 0.3 * lposcords[1], w * 0.2, w * 0.2);
+            ctx.fillStyle = '#3B3';
+            lposcords = locate.lposToCords(locate.lpos);
+            ctx.fillRect(cw * 0.58 + (locate.gpos % locate.w) * w + w * 0.4 + w * 0.3 * lposcords[0], ch - w * mh - ch * 0.05 + Math.floor(locate.gpos / locate.w) * w + y + w * 0.4  + w * 0.3 * lposcords[1], w * 0.2, w * 0.2);
+        }
+    },
+    ambient : function(x, y, w, h, amb){
+        for(let i = 2; i < 4; i++){
+            if(amb[i] != null){
+                ctx.drawImage(img[`leftambient${amb[i]}`], x + view.ambientSpriteCords[i - 2][0] * w, y + view.ambientSpriteCords[i - 2][1] * h, view.ambientSpriteCords[i - 2][2] * w, view.ambientSpriteCords[i - 2][3] * h);
+            }
+        }
+        for(let i = 4; i < 6; i++){
+            if(amb[i] != null){
+                ctx.drawImage(img[`ambient${amb[i]}`], x + view.ambientSpriteCords[i - 2][0] * w, y + view.ambientSpriteCords[i - 2][1] * h, view.ambientSpriteCords[i - 2][2] * w, view.ambientSpriteCords[i - 2][3] * h);
+            }
+        }
+        for(let i = 6; i < 8; i++){
+            if(amb[i] != null){
+                ctx.drawImage(img[`rightambient${amb[i]}`], x + view.ambientSpriteCords[i - 2][0] * w, y + view.ambientSpriteCords[i - 2][1] * h, view.ambientSpriteCords[i - 2][2] * w, view.ambientSpriteCords[i - 2][3] * h);
+            }
+        }
     }
 };
  
@@ -1330,41 +1505,10 @@ function draw(){
             draws.peek();
         }
         else{//комната
-            ctx.drawImage(img[`room${view.roomSkin - 1}`], view.x * cw / -2, 0, cw * 1.5, ch);
-            if(view.room[1] > 0 && view.room[1] < 4){
-                ctx.drawImage(img[`leftdoor${view.room[1] - 1}`], view.x * cw / -2 + cw * 0.145, ch * 0.19, cw * 0.143, ch * 0.68);
-            }
-            if(view.room[2] > 0 && view.room[2] < 4){
-                ctx.drawImage(img[`door${view.room[2] - 1}`], view.x * cw / -2 + cw * 0.675, ch * 0.169, cw * 0.15, ch * 0.5);
-            }
-            if(view.room[3] > 0 && view.room[3] < 4){
-                ctx.drawImage(img[`rightdoor${view.room[3] - 1}`], view.x * cw / -2 + cw * 1.212, ch * 0.19, cw * 0.143, ch * 0.68);
-            }
-            if(view.room[1] == 4){
-                ctx.drawImage(img.table, cw * 0.29 + view.x * cw / -2, ch * 0.56, cw * 0.25, ch * 0.25);
-            }
-            else if(view.room[3] == 4){
-                ctx.drawImage(img.table, cw * 0.96 + view.x * cw / -2, ch * 0.56, cw * 0.25, ch * 0.25);
-            }
-            else if(view.room[0] == 4){
-                ctx.drawImage(img.table, cw * 0.35 + view.x * cw / -2, ch * 0.4, cw * 0.8, ch * 0.6);
-            }
+            draws.room(view.x * cw / -2, 0, cw * 1.5, ch, (view.enemyShow !== false && view.roomType != 1) ? view.enemyShow : -1, view.roomSkin, view.room, view.ambient);
         }
 
-        if(view.enemyShow !== false && view.roomType != 1){//аниматроник
-            if(view.enemyShow == 0){
-                ctx.drawImage(img.enemy, cw * 0.4435 + view.x * cw / -2, ch * -0.2, cw * 0.613, cw);
-            }
-            else if(view.enemyShow == 1){
-                ctx.drawImage(img.enemy, view.x * cw / -2 + cw * 0.23, ch * 0.25, cw * 0.2, cw * 0.3264);
-            }
-            else if(view.enemyShow == 2){
-                ctx.drawImage(img.enemy, view.x * cw / -2 + cw * 0.675, ch * 0.21, cw * 0.15, cw * 0.2448);
-            }
-            else{
-                ctx.drawImage(img.enemy, view.x * cw / -2 + cw * 1.07, ch * 0.25, cw * 0.2, cw * 0.3264);
-            }
-        }
+        
 
         if(view.roomType == 2){//замочная скважина
             ctx.drawImage(img.keyhole, plx - cw, ply - ch, cw * 2, ch * 2);
@@ -1393,12 +1537,24 @@ function draw(){
             draws.dark();
         }
 
+        if(showMap && view.room[0] != 4){//maphack
+            draws.tabletMap(0);
+        }
+
         if(view.cursorType == 4){//курсор кружок
             draws.arc(plx, ply, sra * 0.3);
         }
 
         if(showLog){//данные для дебагинга
             draws.logs();
+        }
+    }
+    else if(game.type == 2){
+        if(game.winEndMenu){
+            draws.win();
+        }
+        else{
+            draws.loose();
         }
     }
 }
